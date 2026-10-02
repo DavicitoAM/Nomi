@@ -1,0 +1,34 @@
+import { test, expect } from "@playwright/test";
+
+test("registro → contacto → compromiso → abono → historial → dashboard", async ({ page }, info) => {
+  await page.goto("/");
+  await page.getByLabel("Tu nombre").fill("David");
+  await page.getByLabel("Correo electrónico").fill(`demo-${Date.now()}-${info.project.name}@example.com`);
+  await page.getByLabel("Contraseña", { exact: true }).fill("demo-password-local-2026");
+  await page.getByRole("button", { name: "Crear mi espacio", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Hola, David." })).toBeVisible();
+  await page.getByRole("button", { name: "Registrar pendiente", exact: true }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Nombre", { exact: true }).fill("Juan Pérez");
+  await dialog.getByRole("button", { name: "Guardar contacto" }).click();
+  await dialog.getByLabel("Monto", { exact: false }).fill("10000");
+  await dialog.getByLabel("Concepto", { exact: false }).fill("Diseño de página web");
+  await dialog.getByRole("button", { name: "Guardar pendiente" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator(".hero-stat")).toContainText("$10,000.00");
+  await page.getByRole("button", { name: /Juan Pérez/ }).click();
+  await dialog.getByRole("button", { name: "Registrar abono" }).click();
+  await dialog.getByLabel("Monto del abono").fill("2500");
+  await dialog.getByLabel("Nota", { exact: false }).fill("Transferencia");
+  await dialog.getByRole("button", { name: "Confirmar abono" }).click();
+  await expect(dialog.locator(".balance-callout")).toContainText("$7,500.00");
+  await expect(dialog.getByText("Abono registrado", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Transferencia", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await expect(page.locator(".hero-stat")).toContainText("$7,500.00");
+  await expect(page.getByText("Abonado", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.screenshot({ path: `.local/nomi-${info.project.name}.png`, fullPage: true });
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Empieza con claridad." })).toBeVisible();
+});
