@@ -2,9 +2,18 @@
 
 La primera slice funcional ya está implementada en `apps/api` y `apps/web`:
 
-**Registro → Workspace → Contacto → Compromiso → Abono → Historial y Dashboard.**
+**Registro → Workspace → Contacto → Compromiso → Abono → Reversión → Historial y Dashboard.**
 
-Consulta [estado y límites de la implementación](docs/IMPLEMENTATION_STATUS.md) y [contratos provisionales](docs/adr/0019-first-slice-contracts.md). La memoria técnica sigue siendo la fuente arquitectónica; su entrada está en [DOC_INDEX](NOMI_MEMORIA_TECNICA_v0.1/DOC_INDEX.md).
+También están implementados contactos con edición/archivo/restauración, edición descriptiva
+y cancelación de pendientes, exportación JSON y controles locales de calidad y seguridad.
+Consulta el [cierre funcional y sus pruebas](docs/CORE_LOCAL_COMPLETION.md).
+
+El primer cliente **Android** vive en `apps/mobile` (React + Capacitor), reutiliza esa UI
+y se conecta a la misma API/PostgreSQL. Tiene APK debug y validación en emulador;
+no está publicado en Google Play. Consulta [instalación, pruebas y límites](docs/ANDROID_VALIDATION.md)
+y la decisión [ADR-0023](docs/adr/0023-android-first-client.md).
+
+Consulta [estado y límites de la implementación](docs/IMPLEMENTATION_STATUS.md), [contratos provisionales](docs/adr/0019-first-slice-contracts.md) y [trazabilidad](TRACEABILITY.md). La memoria técnica sigue siendo la fuente arquitectónica; el [índice del repositorio](DOC_INDEX.md) enlaza todos los documentos.
 
 ## Ejecutar localmente
 
@@ -27,6 +36,18 @@ Si Docker está detenido y tienes PostgreSQL 18 instalado en Windows, puedes usa
 
 En macOS/Linux inicia API y web en dos terminales: `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log` y `npm run dev`, con el entorno virtual activado. `.env` es leído por la API. Para Next.js, configura `API_INTERNAL_URL` en el entorno o en `apps/web/.env.local` sólo si cambias el puerto/destino de la API.
 
+## Verificar correo y recuperar acceso
+
+El arranque de PowerShell también inicia el worker y el [buzón local](http://localhost:8025). Los mensajes se guardan en `.local/mailbox`; no se envían correos externos por defecto. Registra una cuenta, abre su mensaje y confirma el enlace. Para recuperar acceso: **Inicia sesión → Olvidé mi contraseña**. El cambio revoca todas las sesiones anteriores y conserva tus datos.
+
+Si inicias procesos manualmente, añade dos terminales: `python -m app.worker` y `python -m app.mailbox`. API y worker necesitan la misma clave persistente de correo. Desarrollo la genera en `.local/account-mail.key`; no la borres mientras existan envíos pendientes. Consulta [configuración, pruebas y operación](docs/ACCOUNT_LIFECYCLE_VALIDATION.md).
+
+## Probar la reversión
+
+Registra un pendiente, abre su detalle y añade un abono. En el historial selecciona **Revertir abono** y confirma. El saldo se restaura y ambos movimientos permanecen vinculados. Si una respuesta se pierde, cierra el formulario y usa **Revisar operación pendiente**; también funciona después de recargar. La intención se conserva en IndexedDB por cuenta/Workspace hasta resolverla. No almacena credenciales.
+
+Consulta [ADR-0020](docs/adr/0020-core-reconstruction-contracts.md) para las decisiones aceptadas y el cambio de los agregados del Dashboard a strings decimales exactos.
+
 ## Validación
 
 Crea una base dedicada `nomi_test` (el script Windows ya lo hace). Con Docker: `docker compose exec postgres createdb -U nomi nomi_test`.
@@ -42,9 +63,24 @@ npm.cmd run test:e2e
 
 E2E requiere API y web iniciadas, y Microsoft Edge instalado. Usa datos sintéticos nuevos en cada ejecución. Las pruebas PostgreSQL se limitan a `nomi_test`; `TEST_DATABASE_URL` permite configurar su conexión, conservando ese nombre de base.
 
+Para probar la compilación de producción local, sustituye el servidor web de desarrollo por `npm.cmd run start --workspace apps/web` después del build. En CI, Playwright inicia API y web automáticamente y utiliza Chromium. No ejecutes pruebas de integración que vacían `nomi_test` simultáneamente con E2E sobre esa misma base.
+
 Para regenerar contratos: `python scripts/export_openapi.py` y `npx openapi-typescript docs/api/openapi.json -o apps/web/src/lib/schema.d.ts`. CI comprueba que no se desvíen.
 
-Esta entrega es local. Todavía no se ha validado en staging ni cumple el alcance completo de Core: verificación/recuperación de correo, reversión/cancelación, archivo, worker y offline están pendientes. No se envían correos ni se publican datos a proveedores.
+Ensayo aislado de respaldo/restauración y HTTPS: `python scripts/operational_drill.py`.
+Crea y detiene su propio clúster PostgreSQL 18 con datos sintéticos, cifra/restaura un respaldo,
+comprueba recuperación tras caída del proceso y ejecuta smoke por TLS. No usa tu base habitual.
+Consulta [resultados, requisitos y límites](docs/OPERATIONS_VALIDATION.md).
+
+Prueba de carga aislada: `python scripts/load_drill.py`. Exporta tus datos desde **Exportar mis datos**
+en la web (JSON, hasta 10,000 filas y 10 MiB). Mantenimiento de credenciales antiguas:
+`python -m app.maintenance` simula y `python -m app.maintenance --apply` aplica lotes acotados.
+Consulta [alcance, controles de seguridad y límites](docs/CORE_LOCAL_COMPLETION.md).
+
+Esta entrega funciona y se valida localmente. Cancelación, archivo/restauración, verificación,
+recuperación y worker de correo están implementados. Siguen pendientes staging, SMTP real,
+validación operativa del proveedor y PWA/offline completo. El modo local entrega al buzón
+de pruebas; no se publicaron datos a proveedores ni se declaró listo para producción.
 
 Referencias técnicas consultadas: [instalación Next.js](https://nextjs.org/docs/app/getting-started/installation), [CSP Next.js](https://nextjs.org/docs/app/guides/content-security-policy), [DTOs FastAPI](https://fastapi.tiangolo.com/tutorial/response-model/).
 

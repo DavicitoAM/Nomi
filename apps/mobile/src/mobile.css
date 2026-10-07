@@ -1,0 +1,3 @@
+body { overscroll-behavior-y: none; padding-top:env(safe-area-inset-top); }
+.mobile-nav { padding-bottom:env(safe-area-inset-bottom); }
+dialog { max-height:calc(100dvh - 32px); }

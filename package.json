@@ -1,11 +1,22 @@
 {
-  "name": "nomi", "private": true,
-  "workspaces": ["apps/web"],
+  "name": "nomi",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/mobile"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace apps/web",
     "build": "npm run build --workspace apps/web",
     "typecheck": "npm run typecheck --workspace apps/web",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "mobile:build": "npm run build --workspace apps/mobile",
+    "mobile:sync": "npm run sync --workspace apps/mobile"
   },
-  "devDependencies": {"@playwright/test": "^1.58.0", "openapi-typescript": "^7.10.1"}
+  "overrides": { "xcode": { "uuid": "^11.1.1" } },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.58.0",
+    "openapi-typescript": "^7.10.1"
+  }
 }

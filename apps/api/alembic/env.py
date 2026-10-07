@@ -1,12 +1,12 @@
 from alembic import context
 
 from app.core.database import Base, engine
-from app.modules.audit import models as audit
-from app.modules.commitments import models as commitments
-from app.modules.contacts import models as contacts
-from app.modules.identity import models as identity
-from app.modules.transactions import models as transactions
-from app.modules.workspaces import models as workspaces
+from app.modules.audit.infrastructure import models as audit
+from app.modules.commitments.infrastructure import models as commitments
+from app.modules.contacts.infrastructure import models as contacts
+from app.modules.identity.infrastructure import models as identity
+from app.modules.transactions.infrastructure import models as transactions
+from app.modules.workspaces.infrastructure import models as workspaces
 from app.shared import models as shared
 
 assert all((audit, commitments, contacts, identity, transactions, workspaces, shared))

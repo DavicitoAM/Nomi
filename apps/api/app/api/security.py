@@ -5,7 +5,8 @@ from uuid import UUID
 from fastapi import Request, Security
 from fastapi.security import APIKeyCookie
 
-from app.modules.identity.repository import digest
+from app.core.config import settings
+from app.modules.identity.infrastructure.repository import digest
 from app.shared.context import Context
 from app.shared.errors import DomainError
 from app.shared.uow import SqlUnitOfWork
@@ -23,6 +24,15 @@ def auth_context(
         if session is None:
             raise DomainError("UNAUTHENTICATED", "Tu sesión terminó. Vuelve a entrar.", 401)
         session_id, user_id, csrf_hash = session
+        if (
+            settings().environment != "development"
+            and request.url.path
+            not in ("/api/v1/me", "/api/v1/auth/logout", "/api/v1/auth/email/resend")
+            and not uow.identity.profile(user_id)["email_verified"]
+        ):
+            raise DomainError(
+                "EMAIL_NOT_VERIFIED", "Verifica tu correo antes de operar en este espacio.", 403
+            )
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             csrf = request.headers.get("X-CSRF-Token", "")
             if not csrf or not compare_digest(digest(csrf), csrf_hash):

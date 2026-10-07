@@ -5,12 +5,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ArrowUpRight, Check, MoveUpRight } from "lucide-react";
 import { api, type Profile } from "@/lib/api";
+import { ForgotPassword } from "./account-flows";
 
 const schema = z.object({ display_name: z.string(), email: z.email("Revisa tu correo electrónico."), password: z.string().min(1, "Escribe tu contraseña.") });
 type Values = z.infer<typeof schema>;
 
 export function AuthScreen({ onSuccess }: { onSuccess: (profile: Profile) => void }) {
   const [login, setLogin] = useState(false);
+  const [forgot, setForgot] = useState(false);
   const [error, setError] = useState("");
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { display_name: "", email: "", password: "" } });
   async function submit(values: Values) {
@@ -21,6 +23,7 @@ export function AuthScreen({ onSuccess }: { onSuccess: (profile: Profile) => voi
       onSuccess(await api<Profile>(`/auth/${login ? "login" : "register"}`, body));
     } catch (e) { setError((e as Error).message); }
   }
+  if (forgot) return <ForgotPassword onBack={() => { setForgot(false); setLogin(true); }} />;
   return <main className="auth-shell">
     <section className="auth-story">
       <a href="/" className="brand"><span className="brand-mark">n</span>nomi<span className="brand-dot">.</span></a>
@@ -39,8 +42,9 @@ export function AuthScreen({ onSuccess }: { onSuccess: (profile: Profile) => voi
         {error && <p role="alert" className="error-box">{error}</p>}
         <button className="primary full" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? "Un momento…" : login ? "Entrar a mi espacio" : "Crear mi espacio"}<ArrowUpRight size={18} /></button>
       </form>
+      {login && <button className="text-button" onClick={() => setForgot(true)}>Olvidé mi contraseña</button>}
       <p className="auth-switch">{login ? "¿Primera vez por aquí?" : "¿Ya tienes cuenta?"} <button className="text-button" onClick={() => { setLogin(!login); setError(""); }}>{login ? "Crea tu espacio" : "Inicia sesión"}</button></p>
-      <p className="fine-print">Vista previa local · Una moneda, un espacio personal.<br />La verificación por correo estará disponible más adelante.</p>
+      <p className="fine-print">Una moneda, un espacio personal.<br />Confirma tu correo para proteger el acceso a tu cuenta.</p>
     </section>
   </main>;
 }

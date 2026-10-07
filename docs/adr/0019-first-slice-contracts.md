@@ -2,6 +2,10 @@
 
 Estado: **PROVISIONAL**, validación local. Complementa ADR-0005, 0013, 0014 y 0016; no los reemplaza.
 
+Actualización 2026-10-06: [ADR-0020](0020-core-reconstruction-contracts.md) acepta/refina
+atomicidad de registro, timing de cerrados, idempotencia y reversión. La estrategia de sesión
+permanece provisional. Las referencias a decisiones abiertas abajo describen el estado histórico.
+
 ## Contexto
 
 El repositorio necesita demostrar el recorrido de AGENTS.md §34. Los documentos dejan abiertos el transporte de version, la reproducción de idempotencia, el timing de compromisos cerrados y ciertos detalles de sesión/registro.

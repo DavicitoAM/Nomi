@@ -11,10 +11,10 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.database import engine
 from app.main import app
-from app.modules.audit.repository import AuditRepository
-from app.modules.commitments.domain import Commitment
-from app.modules.commitments.repository import CommitmentRepository
-from app.modules.workspaces.repository import WorkspaceRepository
+from app.modules.audit.infrastructure.repository import AuditRepository
+from app.modules.commitments.domain.entities import Commitment
+from app.modules.commitments.infrastructure.repository import CommitmentRepository
+from app.modules.workspaces.infrastructure.repository import WorkspaceRepository
 from app.shared.errors import DomainError
 from app.shared.uow import EffectsRepository
 
@@ -75,7 +75,7 @@ def test_full_vertical_slice(client):
         "partial",
     )
     dashboard = client.get("/api/v1/dashboard/summary").json()
-    assert dashboard["receivable_balance_minor"] == 750000
+    assert dashboard["receivable_balance_minor"] == "750000"
     history = client.get(f"/api/v1/commitments/{created['id']}/transactions").json()["items"]
     assert (
         created["original_amount_minor"] - sum(t["amount_minor"] for t in history)
@@ -302,7 +302,7 @@ def test_currency_mismatch_and_missing_idempotency(client):
 
 
 def test_dashboard_timezone_and_exclusions(client, monkeypatch):
-    from app.modules.reporting import application
+    from app.modules.reporting.application import use_cases as application
 
     monkeypatch.setattr(application, "now", lambda: datetime(2026, 10, 3, 2, 0, tzinfo=UTC))
     register(client)
@@ -320,10 +320,10 @@ def test_dashboard_timezone_and_exclusions(client, monkeypatch):
     summary = client.get("/api/v1/dashboard/summary").json()
     assert summary == {
         "currency_code": "MXN",
-        "receivable_balance_minor": 400,
-        "payable_balance_minor": 200,
-        "overdue_balance_minor": 200,
-        "due_soon_balance_minor": 100,
+        "receivable_balance_minor": "400",
+        "payable_balance_minor": "200",
+        "overdue_balance_minor": "200",
+        "due_soon_balance_minor": "100",
         "active_commitments": 3,
     }
 

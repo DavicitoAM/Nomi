@@ -1,7 +1,11 @@
 import { test, expect } from "@playwright/test";
 
-test("registro → contacto → compromiso → abono → historial → dashboard", async ({ page }, info) => {
+test("registro → contacto → compromiso → abono → reversión → dashboard", async ({ page }, info) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", error => pageErrors.push(error.message));
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Empieza con claridad." })).toBeVisible();
+  await page.screenshot({ path: `.local/nomi-auth-${info.project.name}.png`, fullPage: true });
   await page.getByLabel("Tu nombre").fill("David");
   await page.getByLabel("Correo electrónico").fill(`demo-${Date.now()}-${info.project.name}@example.com`);
   await page.getByLabel("Contraseña", { exact: true }).fill("demo-password-local-2026");
@@ -27,8 +31,113 @@ test("registro → contacto → compromiso → abono → historial → dashboard
   await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
   await expect(page.locator(".hero-stat")).toContainText("$7,500.00");
   await expect(page.getByText("Abonado", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Ver por pagar" }).click();
+  await expect(page.getByRole("heading", { name: "Tus pendientes.", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Yo debo", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("No hay coincidencias.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Me deben", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Juan Pérez/ })).toBeVisible();
+  const nav = page.getByRole("navigation", { name: "Navegación principal" });
+  await nav.getByRole("button", { name: "Contactos" }).click();
+  await expect(page.getByRole("heading", { name: "Juan Pérez", exact: true })).toBeVisible();
+  await nav.getByRole("button", { name: "Resumen" }).click();
+  await page.getByLabel("Buscar pendientes", { exact: true }).fill("Diseño de página");
+  await expect(page.getByRole("button", { name: /Juan Pérez/ })).toBeVisible();
+  await page.getByLabel("Buscar pendientes", { exact: true }).fill("no-existe-este-pendiente");
+  await expect(page.getByText("No hay coincidencias.", { exact: true })).toBeVisible();
+  await page.getByLabel("Buscar pendientes", { exact: true }).fill("");
+  await page.getByRole("button", { name: "Todos", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Todos", exact: true })).toHaveAttribute("aria-pressed", "true");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
-  await page.screenshot({ path: `.local/nomi-${info.project.name}.png`, fullPage: true });
+  await page.screenshot({ path: `.local/nomi-${info.project.name}.png`, fullPage: true, animations: "disabled" });
+  await page.getByRole("button", { name: /Juan Pérez/ }).click();
+  await expect(dialog.locator(".balance-callout")).toContainText("$7,500.00");
+  await page.screenshot({ path: `.local/nomi-detail-${info.project.name}.png`, animations: "disabled" });
+  await dialog.getByRole("button", { name: "Revertir abono", exact: true }).click();
+  await dialog.getByLabel("Motivo").fill("Abono registrado por error");
+  await dialog.getByRole("button", { name: "Confirmar reversión", exact: true }).click();
+  await expect(dialog.locator(".balance-callout")).toContainText("$10,000.00");
+  await expect(dialog.getByText("Abono revertido", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Reversión registrada", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Revertir abono", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: `.local/nomi-reversal-${info.project.name}.png`, animations: "disabled" });
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page.locator(".hero-stat")).toContainText("$10,000.00");
+  if (info.project.name === "mobile") {
+    await page.setViewportSize({ width: 320, height: 740 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+    await expect(nav.getByRole("button", { name: "Contactos" })).toBeVisible();
+  }
   await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Empieza con claridad." })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("respuesta perdida y recarga recuperan el mismo pago, con aislamiento de cuenta", async ({ page }, info) => {
+  const errors: string[] = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.goto("/");
+  const email = `recovery-${Date.now()}-${info.project.name}@example.com`;
+  await page.getByLabel("Tu nombre").fill("Recovery");
+  await page.getByLabel("Correo electrónico").fill(email);
+  await page.getByLabel("Contraseña", { exact: true }).fill("test-recovery-password");
+  await page.getByRole("button", { name: "Crear mi espacio", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Hola, Recovery." })).toBeVisible();
+  const csrf = (await page.context().cookies()).find(c => c.name === "nomi_csrf")!.value;
+  const contact = await page.request.post("/api/v1/contacts", { headers: { "X-CSRF-Token": csrf, Origin: "http://localhost:3000" }, data: { name: "Recuperación" } });
+  expect(contact.status()).toBe(201);
+  const created = await page.request.post("/api/v1/commitments", { headers: { "X-CSRF-Token": csrf, Origin: "http://localhost:3000", "Idempotency-Key": crypto.randomUUID() }, data: { contact_id: (await contact.json()).id, direction: "receivable", original_amount_minor: 1000000, currency_code: "MXN" } });
+  expect(created.status()).toBe(201);
+  const commitment = await created.json();
+  await page.reload();
+  await page.getByRole("button", { name: /Recuperación/ }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Registrar abono", exact: true }).click();
+  let dropped = false;
+  await page.route("**/api/v1/commitments/*/transactions", async route => {
+    if (route.request().method() !== "POST" || dropped) return route.continue();
+    dropped = true;
+    const response = await route.fetch();
+    expect(response.status()).toBe(201);
+    await route.abort("connectionfailed");
+  });
+  await dialog.getByLabel("Monto del abono").fill("2500");
+  await dialog.getByRole("button", { name: "Confirmar abono", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("No pudimos confirmar");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Revisar operación pendiente" })).toBeVisible();
+  await expect(page.locator(".hero-stat")).toContainText("$7,500.00");
+
+  // Keep the unresolved intent through logout; another account must not see or replay it.
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+  await page.getByLabel("Tu nombre").fill("Otra");
+  await page.getByLabel("Correo electrónico").fill(`other-${email}`);
+  await page.getByLabel("Contraseña", { exact: true }).fill("test-recovery-password");
+  await page.getByRole("button", { name: "Crear mi espacio", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Hola, Otra." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Revisar operación pendiente" })).toHaveCount(0);
+  expect((await page.request.get(`/api/v1/commitments/${commitment.id}`)).status()).toBe(404);
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+  const login = await page.request.post("/api/v1/auth/login", { headers: { Origin: "http://localhost:3000" }, data: { email, password: "test-recovery-password" } });
+  expect(login.status()).toBe(200);
+  await page.reload();
+  await page.getByRole("button", { name: "Revisar operación pendiente" }).click();
+  await expect(page.getByRole("button", { name: "Revisar operación pendiente" })).toHaveCount(0);
+  const history = await page.request.get(`/api/v1/commitments/${commitment.id}/transactions`);
+  expect((await history.json()).items).toHaveLength(1);
+  await expect(page.locator(".hero-stat")).toContainText("$7,500.00");
+  expect(errors).toEqual([]);
+});
+
+test("Dashboard conserva centavos en agregados mayores a 2^53", async ({ page }, info) => {
+  await page.goto("/");
+  await page.getByLabel("Tu nombre").fill("Precisión");
+  await page.getByLabel("Correo electrónico").fill(`precision-${Date.now()}-${info.project.name}@example.com`);
+  await page.getByLabel("Contraseña", { exact: true }).fill("test-precision-password");
+  await page.getByRole("button", { name: "Crear mi espacio", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Hola, Precisión." })).toBeVisible();
+  await page.route("**/api/v1/dashboard/summary", route => route.fulfill({ json: { currency_code: "MXN", receivable_balance_minor: "9007199254740993", payable_balance_minor: "0", overdue_balance_minor: "0", due_soon_balance_minor: "0", active_commitments: 1 } }));
+  await page.reload();
+  await expect(page.locator(".hero-stat")).toContainText("$90,071,992,547,409.93");
 });

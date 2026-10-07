@@ -15,6 +15,7 @@ from starlette.exceptions import HTTPException
 from app.api.routes import router
 from app.core.config import settings
 from app.core.database import engine
+from app.core.request_limits import RequestLimits
 from app.shared.errors import DomainError
 
 app = FastAPI(title="Nomi Core", version="0.1.0")
@@ -87,9 +88,9 @@ async def security_and_telemetry(request: Request, call_next):
             response = problem(
                 request, "REQUEST_TOO_LARGE", "La solicitud supera el límite permitido.", 413
             )
-    if request.url.path in ("/api/v1/auth/register", "/api/v1/auth/login") and response is None:
+    if request.url.path.startswith("/api/v1/auth/") and response is None:
         # Local, single-process limiter. Never trust a client-supplied forwarding header.
-        client = request.client.host if request.client else "unknown"
+        client = (request.client.host if request.client else "unknown") + ":" + request.url.path
         with rate_lock:
             for key in list(attempts):
                 if not attempts[key] or attempts[key][-1] < start - 60:
@@ -139,3 +140,7 @@ def ready():
     with engine.connect() as db:
         db.execute(text("SELECT 1"))
     return {"status": "ready"}
+
+
+# Outermost middleware bounds bodies before JSON parsing or business mutations.
+app.add_middleware(RequestLimits)

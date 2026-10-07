@@ -1,0 +1,12 @@
+{
+  "name": "@nomi/mobile", "version": "0.1.0", "private": true, "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1", "build": "tsc --noEmit && vite build",
+    "sync": "npm run build && cap sync android", "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.5.3", "@capacitor/android": "8.5.3", "@capacitor/app": "8.1.2",
+    "react": "^19.2.0", "react-dom": "^19.2.0"
+  },
+  "devDependencies": { "@capacitor/cli": "8.5.3", "vite": "8.3.3", "typescript": "^5.9.0", "@tailwindcss/postcss": "^4.2.0" }
+}

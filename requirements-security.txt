@@ -1,0 +1,4 @@
+# Isolated tooling environment; never installed into the application runtime.
+pip-audit==2.10.1
+bandit==1.9.4
+detect-secrets==1.5.0

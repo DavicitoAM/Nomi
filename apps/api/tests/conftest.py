@@ -1,3 +1,4 @@
+import base64
 import os
 
 # Tests operate exclusively on a dedicated disposable database, never the app database.
@@ -7,6 +8,8 @@ os.environ["DATABASE_URL"] = os.getenv(
 os.environ["APP_ORIGIN"] = "http://localhost:3000"
 os.environ["COOKIE_SECURE"] = "false"
 os.environ["ENVIRONMENT"] = "development"
+os.environ["ACCOUNT_MAIL_KEY"] = base64.urlsafe_b64encode(os.urandom(32)).decode()
+os.environ["MAIL_BACKEND"] = "file"
 
 import pytest
 from alembic import command
@@ -33,7 +36,8 @@ def clean_database(migrated_database):
         db.execute(
             text(
                 "TRUNCATE transactions, commitments, contacts, audit_events, outbox_events, "
-                "idempotency_records, sessions, memberships, workspaces, users"
+                "idempotency_records, sessions, memberships, workspaces, users, "
+                "email_verification_tokens, password_reset_tokens"
             )
         )
     attempts.clear()
